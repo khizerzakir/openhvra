@@ -22,15 +22,20 @@ const cartoTileUrl = (subdomain) => {
   const url = `https://${subdomain}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png`;
   return CARTODB_API_KEY ? `${url}?api_key=${encodeURIComponent(CARTODB_API_KEY)}` : url;
 };
+const cartoRasterVoyagerUrl = () => {
+  const url = `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png`;
+  return CARTODB_API_KEY ? `${url}?key=${encodeURIComponent(CARTODB_API_KEY)}` : url;
+};
 const BASEMAPS = {
   osm: { label: 'OpenStreetMap', swatch: '#f2efe9', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], attribution: OSM_ATTR, maxzoom: 19, paint: { 'raster-saturation': -0.6, 'raster-opacity': 0.85 } },
   hot: { label: 'Humanitarian (HOT)', swatch: '#f4e3c9', tiles: ['a', 'b', 'c'].map((s) => `https://${s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png`), attribution: `${OSM_ATTR}, style by <a href="https://www.hotosm.org/">HOT</a>, hosted by OSM France`, maxzoom: 19, paint: { 'raster-saturation': -0.3 } },
   light: { label: 'Light (CARTO)', swatch: '#f5f5f3', tiles: ['a', 'b', 'c'].map(cartoTileUrl), attribution: `${OSM_ATTR} © <a href="https://carto.com/attributions">CARTO</a>`, maxzoom: 20 },
-  voyager: { label: 'Voyager (CARTO)', swatch: '#dce8d1', styleUrl: CARTODB_STYLE_URL, attribution: `${OSM_ATTR} © <a href="https://carto.com/attributions">CARTO</a>`, maxzoom: 20, styleLayers: [] },
+  voyagerRaster: { label: 'Voyager raster (CARTO)', swatch: '#dce8d1', tiles: ['a', 'b', 'c'].map(cartoRasterVoyagerUrl), attribution: `${OSM_ATTR} © <a href="https://carto.com/attributions">CARTO</a>`, maxzoom: 20 },
+  voyager: { label: 'Voyager GL (CARTO)', swatch: '#dce8d1', styleUrl: CARTODB_STYLE_URL, attribution: `${OSM_ATTR} © <a href="https://carto.com/attributions">CARTO</a>`, maxzoom: 20, styleLayers: [] },
   topo: { label: 'Topographic', swatch: '#cfe0b4', tiles: ['a', 'b', 'c'].map((s) => `https://${s}.tile.opentopomap.org/{z}/{x}/{y}.png`), attribution: `${OSM_ATTR}, SRTM | style © <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)`, maxzoom: 17 },
   sat: { label: 'Satellite (Esri)', swatch: '#3d5a3a', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], attribution: 'Imagery © Esri, Maxar, Earthstar Geographics', maxzoom: 19 },
 };
-const INITIAL_BASEMAP = CARTODB_STYLE_URL ? 'voyager' : 'osm';
+const INITIAL_BASEMAP = CARTODB_API_KEY ? 'voyagerRaster' : 'osm';
 const style = { version: 8, sources: {}, layers: [] };
 for (const [id, b] of Object.entries(BASEMAPS)) {
   if (b.styleUrl) continue;
@@ -143,7 +148,7 @@ map.on('load', () => {
           if (map.getLayer(layer.id)) continue;
           map.addLayer({
             ...layer,
-            layout: { ...(layer.layout ?? {}), visibility: 'visible' },
+            layout: { ...(layer.layout ?? {}), visibility: 'none' },
           });
           voyager.styleLayers.push(layer.id);
         }
