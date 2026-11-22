@@ -98,7 +98,10 @@ export class LayerControl {
       const t = e.target;
       if (t.name === 'basemap') {
         this.basemap = t.value;
-        for (const k of Object.keys(this.basemaps)) this._vis(`base-${k}`, k === t.value);
+        for (const k of Object.keys(this.basemaps)) {
+          this._vis(`base-${k}`, k === t.value);
+          for (const id of this.basemaps[k].styleLayers ?? []) this._vis(id, k === t.value);
+        }
       } else if (t.dataset.key) {
         this.setVisible(t.dataset.key, t.checked);
       }

@@ -16,17 +16,26 @@ export const actions = {};
 // ---- Map ----------------------------------------------------------------------------
 
 const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const CARTODB_API_KEY = window.CARTODB_CONFIG?.apiKey?.trim() ?? '';
+const CARTODB_STYLE_URL = window.CARTODB_CONFIG?.styleUrl?.trim() ?? '';
+const cartoTileUrl = (subdomain) => {
+  const url = `https://${subdomain}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png`;
+  return CARTODB_API_KEY ? `${url}?api_key=${encodeURIComponent(CARTODB_API_KEY)}` : url;
+};
 const BASEMAPS = {
   osm: { label: 'OpenStreetMap', swatch: '#f2efe9', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], attribution: OSM_ATTR, maxzoom: 19, paint: { 'raster-saturation': -0.6, 'raster-opacity': 0.85 } },
   hot: { label: 'Humanitarian (HOT)', swatch: '#f4e3c9', tiles: ['a', 'b', 'c'].map((s) => `https://${s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png`), attribution: `${OSM_ATTR}, style by <a href="https://www.hotosm.org/">HOT</a>, hosted by OSM France`, maxzoom: 19, paint: { 'raster-saturation': -0.3 } },
-  light: { label: 'Light (CARTO)', swatch: '#f5f5f3', tiles: ['a', 'b', 'c'].map((s) => `https://${s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png`), attribution: `${OSM_ATTR} © <a href="https://carto.com/attributions">CARTO</a>`, maxzoom: 20 },
+  light: { label: 'Light (CARTO)', swatch: '#f5f5f3', tiles: ['a', 'b', 'c'].map(cartoTileUrl), attribution: `${OSM_ATTR} © <a href="https://carto.com/attributions">CARTO</a>`, maxzoom: 20 },
+  voyager: { label: 'Voyager (CARTO)', swatch: '#dce8d1', styleUrl: CARTODB_STYLE_URL, attribution: `${OSM_ATTR} © <a href="https://carto.com/attributions">CARTO</a>`, maxzoom: 20, styleLayers: [] },
   topo: { label: 'Topographic', swatch: '#cfe0b4', tiles: ['a', 'b', 'c'].map((s) => `https://${s}.tile.opentopomap.org/{z}/{x}/{y}.png`), attribution: `${OSM_ATTR}, SRTM | style © <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)`, maxzoom: 17 },
   sat: { label: 'Satellite (Esri)', swatch: '#3d5a3a', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], attribution: 'Imagery © Esri, Maxar, Earthstar Geographics', maxzoom: 19 },
 };
+const INITIAL_BASEMAP = CARTODB_STYLE_URL ? 'voyager' : 'osm';
 const style = { version: 8, sources: {}, layers: [] };
 for (const [id, b] of Object.entries(BASEMAPS)) {
+  if (b.styleUrl) continue;
   style.sources[`base-${id}`] = { type: 'raster', tileSize: 256, tiles: b.tiles, attribution: b.attribution, maxzoom: b.maxzoom };
-  style.layers.push({ id: `base-${id}`, type: 'raster', source: `base-${id}`, layout: { visibility: id === 'osm' ? 'visible' : 'none' }, paint: b.paint ?? {} });
+  style.layers.push({ id: `base-${id}`, type: 'raster', source: `base-${id}`, layout: { visibility: id === INITIAL_BASEMAP ? 'visible' : 'none' }, paint: b.paint ?? {} });
 }
 // Elevation for the 3D view: terrain and hillshade read the open Terrarium
 // tiles, which are only requested while 3D is switched on.
@@ -66,7 +75,7 @@ const ramp = (classes) => classes.map((c) => ({ label: c.label, color: c.color }
 export const layerCtrl = new LayerControl({
   onChange: () => actions.refresh3D(),
   basemaps: BASEMAPS,
-  basemap: 'osm',
+  basemap: INITIAL_BASEMAP,
   layers: [
     { key: 'area', label: 'Selected area', ids: ['aoi-fill', 'aoi-line', 'bbox'], symbol: { kind: 'line', color: '#7048e8' } },
     { key: 'completeness', label: 'OSM building completeness (step 1)', ids: ['completeness-fill'], symbol: { kind: 'fill', color: '#6c47c4' }, available: false,
@@ -116,6 +125,31 @@ export function metresToPixels(metres, lat) {
   return ['interpolate', ['exponential', 2], ['zoom'], 0, w0, 22, w0 * 2 ** 22];
 }
 map.on('load', () => {
+  if (CARTODB_STYLE_URL) {
+    void fetch(CARTODB_STYLE_URL)
+      .then((response) => {
+        if (!response.ok) throw new Error(`CARTO Voyager style request failed (${response.status})`);
+        return response.json();
+      })
+      .then((voyagerStyle) => {
+        if (typeof map.setSprite === 'function' && voyagerStyle.sprite) map.setSprite(voyagerStyle.sprite);
+        if (typeof map.setGlyphs === 'function' && voyagerStyle.glyphs) map.setGlyphs(voyagerStyle.glyphs);
+        for (const [id, source] of Object.entries(voyagerStyle.sources ?? {})) {
+          if (!map.getSource(id)) map.addSource(id, source);
+        }
+        const voyager = BASEMAPS.voyager;
+        voyager.styleLayers = [];
+        for (const layer of voyagerStyle.layers ?? []) {
+          if (map.getLayer(layer.id)) continue;
+          map.addLayer({
+            ...layer,
+            layout: { ...(layer.layout ?? {}), visibility: 'visible' },
+          });
+          voyager.styleLayers.push(layer.id);
+        }
+      })
+      .catch((error) => console.error(error));
+  }
   for (const id of ['completeness', 'added', 'aoi', 'buildings', 'roads', 'waterways', 'facilities', 'buffer', 'exposed', 'svi', 'mh', 'risk', 'cryo-glaciers', 'cryo-lakes', 'cryo-paths', 'cryo-marks', 'b3d', 'bbox', 'probe', 'probe-hits', 'probe-links']) {
     map.addSource(id, { type: 'geojson', data: EMPTY });
   }
