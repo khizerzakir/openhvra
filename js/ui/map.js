@@ -16,8 +16,10 @@ export const actions = {};
 // ---- Map ----------------------------------------------------------------------------
 
 const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-const CARTODB_API_KEY = window.CARTODB_CONFIG?.apiKey?.trim() ?? '';
-const CARTODB_STYLE_URL = window.CARTODB_CONFIG?.styleUrl?.trim() ?? '';
+const PUBLIC_CARTODB_API_KEY = 'cb1_52n1_1_3ad8f54d6874161a1770be40';
+const PUBLIC_CARTODB_STYLE_URL = `https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json?key=${PUBLIC_CARTODB_API_KEY}`;
+const CARTODB_API_KEY = window.CARTODB_CONFIG?.apiKey?.trim() || PUBLIC_CARTODB_API_KEY;
+const CARTODB_STYLE_URL = window.CARTODB_CONFIG?.styleUrl?.trim() || PUBLIC_CARTODB_STYLE_URL;
 const cartoTileUrl = (subdomain) => {
   const url = `https://${subdomain}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png`;
   return CARTODB_API_KEY ? `${url}?api_key=${encodeURIComponent(CARTODB_API_KEY)}` : url;
